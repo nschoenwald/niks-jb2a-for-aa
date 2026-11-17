@@ -2,6 +2,10 @@
 
 All notable changes to Nik's JB2A for Automated Animations are documented in this file.
 
+## [14.0.2] - 2026-11-17
+### Fixed
+- **Returning weapons**: The return animations of weapons Automated Animations didn't know yet, such as the Fork and the thrown Shield, now play when you turn on Return Animation. Before, the option could be turned on, but the return animation couldn't be found.
+
 ## [14.0.1] - 2026-11-17
 ### Fixed
 - **Animations in AA's own categories**: New colors of an animation that Automated Animations already lists now go next to its existing colors, under AA's name for it. For example, the yellow Fireball Beam is now under Fireball Beam with the other colors instead of in a separate Fireball entry. This also applies to the On Token and Template versions of Fireball and about 460 other entries.

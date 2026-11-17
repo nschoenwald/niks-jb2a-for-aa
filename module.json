@@ -7,7 +7,7 @@
   "download": "https://github.com/nschoenwald/niks-jb2a-for-aa/releases/latest/download/module.zip",
   "bugs": "https://github.com/nschoenwald/niks-jb2a-for-aa/issues",
   "changelog": "https://github.com/nschoenwald/niks-jb2a-for-aa/blob/main/CHANGELOG.md",
-  "version": "14.0.1",
+  "version": "14.0.2",
   "compatibility": {
     "minimum": "14",
     "verified": "14",

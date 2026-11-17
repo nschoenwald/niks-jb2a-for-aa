@@ -13,7 +13,10 @@ that is about 6,600 animation files.
   with no extra step.
 - Animations are sorted into the menus by where they are in the JB2A library:
   - **Range**: projectiles with distance versions (05ft to 90ft), such as arrows, bolts and spell projectiles.
-    Returning versions (boomerang, dagger…) go into the Return menu.
+  - **Returning weapons** have no menu of their own in Automated Animations: pick the thrown weapon under Range →
+    Weapon (for example Fork or Shield Attack) and turn on **Return Animation**. The module adds the return versions
+    of new throwing weapons, so this option works for them too. Where AA already has a return version for a throw,
+    AA's is kept.
   - **Melee**: melee weapon and creature attacks.
   - **Templates**: circle, cone, line and square effects.
   - **On Token**: everything else, sorted by JB2A folder (Marker, Magic Signs, Conditions, Zoning, Portals, Token

@@ -130,6 +130,7 @@ export function splitKeys(keys, section) {
 
 const sameFiles = (a, b) => Array.isArray(a) && a.length === b.length && a.every((f, i) => relPath(f) === relPath(b[i]));
 const isRangeSection = (section) => section === "range" || section === "return";
+const isReturnLeaf = (leaf) => leaf.keys.includes("return") || /_Return_/.test(leaf.files[0]);
 
 /**
  * JB2A group of a leaf: its keys without color and distance. Leaves of one group are colors of the same animation,
@@ -145,7 +146,7 @@ function groupOf(keys) {
    return `${isReturn ? "return:" : ""}${keys[0]}|${parts.join("|")}`;
 }
 
-/** Library path → every place AA keeps that file: { section, type, animation, variant }. */
+/** Library path → every place AA keeps that file: { section, type, animation, variant, color, distance }. */
 function indexLocations(aaDb) {
    const index = new Map();
    const add = (files, loc) => {
@@ -163,9 +164,10 @@ function indexLocations(aaDb) {
             for (const [variant, variantNode] of entries(animNode)) {
                for (const [color, leaf] of Object.entries(variantNode)) {
                   if (color.startsWith("_")) { continue; }
-                  const loc = { section, type, animation, variant };
-                  if (isObject(leaf)) { for (const [k, v] of Object.entries(leaf)) { if (!k.startsWith("_")) { add(v, loc); } } }
-                  else { add(leaf, loc); }
+                  const loc = { section, type, animation, variant, color, distance: null };
+                  if (isObject(leaf)) {
+                     for (const [k, v] of Object.entries(leaf)) { if (!k.startsWith("_")) { add(v, { ...loc, distance: k }); } }
+                  } else { add(leaf, loc); }
                }
             }
          }
@@ -177,10 +179,11 @@ function indexLocations(aaDb) {
 /**
  * Add every JB2A file that the AA database doesn't contain yet. Mutates `aaDb`.
  * A new color of a JB2A group that AA already has goes next to AA's other colors of that group. Everything else
- * is placed by its library folder (see classify() and splitKeys()).
+ * is placed by its library folder (see classify() and splitKeys()). A return version goes into AA's return section
+ * under exactly the names of its throw version, because AA looks it up that way (and only for range weapons).
  * @param {object} jb2aDb   JB2A's database (as built by its jb2a_sequencer.js)
  * @param {object} aaDb     AA's database (the object passed to the `aa.ready` hook)
- * @returns {{ added: object, skipped: number, besideAA: number, labels: object, templates: Set<string> }}
+ * @returns {{ added: object, skipped: number, besideAA: number, unplaced: number, labels: object, templates: Set<string> }}
  */
 export function extendDatabase(jb2aDb, aaDb) {
    const known = collectFiles(aaDb);
@@ -189,9 +192,14 @@ export function extendDatabase(jb2aDb, aaDb) {
    const templates = new Set();
    let skipped = 0;
    let besideAA = 0;
+   let unplaced = 0;
 
    const child = (node, key) => (node[key] ??= {});
-   const leaves = [...jb2aLeaves(jb2aDb)].filter((leaf) => !SKIPPED_FOLDERS.includes(relPath(leaf.files[0]).split("/")[0]));
+   const all = [...jb2aLeaves(jb2aDb)].filter((leaf) => !SKIPPED_FOLDERS.includes(relPath(leaf.files[0]).split("/")[0]));
+   // Return versions last: they go where their throw version ended up.
+   const leaves = [...all.filter((l) => !isReturnLeaf(l)), ...all.filter(isReturnLeaf)];
+   /** JB2A keys of a range leaf → where it is in AA's range section. */
+   const rangePlaces = new Map();
 
    // Where AA keeps the groups it knows.
    const locations = indexLocations(aaDb);
@@ -201,7 +209,11 @@ export function extendDatabase(jb2aDb, aaDb) {
       if (!locs) { continue; }
       const group = groupOf(leaf.keys);
       if (!groupLocations.has(group)) { groupLocations.set(group, new Map()); }
-      for (const loc of locs) { groupLocations.get(group).set(Object.values(loc).join("."), loc); }
+      for (const { section, type, animation, variant } of locs) {
+         groupLocations.get(group).set(`${section}.${type}.${animation}.${variant}`, { section, type, animation, variant });
+      }
+      const rangeLoc = locs.find((loc) => loc.section === "range" && loc.distance);
+      if (rangeLoc) { rangePlaces.set(leaf.keys.join("|"), rangeLoc); }
    }
 
    /** Put the leaf into an existing AA place if the slot is free. Returns false if it isn't. */
@@ -224,6 +236,21 @@ export function extendDatabase(jb2aDb, aaDb) {
       const rel = relPath(leaf.files[0]);
       if (leaf.files.every((f) => known.has(relPath(f)))) { skipped++; continue; }
 
+      if (isReturnLeaf(leaf)) {
+         // JB2A names a return version like its throw version, with "return" for "throw" (or added to the keys).
+         const throwPlace = rangePlaces.get(leaf.keys.map((key) => (key === "return" ? "throw" : key)).join("|"))
+            ?? rangePlaces.get(leaf.keys.filter((key) => key !== "return").join("|"));
+         if (throwPlace?.type !== "weapon") { unplaced++; continue; }
+         const colorNode = child(child(child(child(child(aaDb, "return"), "weapon"), throwPlace.animation), throwPlace.variant), throwPlace.color);
+         const slot = colorNode[throwPlace.distance];
+         // AA already has a return version for this throw: keep AA's.
+         if (slot !== undefined && !sameFiles(slot, leaf.files)) { unplaced++; continue; }
+         colorNode[throwPlace.distance] = [...leaf.files];
+         leaf.files.forEach((f) => known.add(relPath(f)));
+         added.return++;
+         continue;
+      }
+
       const own = classify(leaf);
       const k = splitKeys(leaf.keys, own.section);
       const rawDistance = DISTANCE.test(leaf.keys.at(-1)) ? leaf.keys.at(-1) : null;
@@ -231,6 +258,8 @@ export function extendDatabase(jb2aDb, aaDb) {
       const besideLocs = [...(groupLocations.get(groupOf(leaf.keys))?.values() ?? [])];
       const placed = besideLocs.filter((loc) => placeAt(loc, k.color, rawDistance, leaf.files));
       if (placed.length) {
+         const rangeLoc = placed.find((loc) => loc.section === "range");
+         if (rangeLoc && rawDistance) { rangePlaces.set(leaf.keys.join("|"), { ...rangeLoc, color: k.color, distance: rawDistance }); }
          besideAA++;
          added[placed[0].section]++;
          labels.colors[k.color] ??= humanize(k.colorRaw);
@@ -257,6 +286,7 @@ export function extendDatabase(jb2aDb, aaDb) {
 
       const variantNode = child(animNode, variant);
       if (isRange) {
+         if (section === "range") { rangePlaces.set(leaf.keys.join("|"), { type, animation, variant, color: k.color, distance: k.distance }); }
          const colorNode = child(variantNode, k.color);
          colorNode[k.distance] = [...leaf.files];
          if (leaf.template && !colorNode._template) { colorNode._template = leaf.template; templates.add(leaf.template); }
@@ -273,5 +303,5 @@ export function extendDatabase(jb2aDb, aaDb) {
       labels.variants[variant] ??= humanize(variant);
       labels.colors[k.color] ??= humanize(k.colorRaw);
    }
-   return { added, skipped, besideAA, labels, templates };
+   return { added, skipped, besideAA, unplaced, labels, templates };
 }
