@@ -1,0 +1,14 @@
+{
+  "NJAA": {
+    "Settings": {
+      "Enabled": {
+        "Name": "Add missing JB2A animations",
+        "Hint": "Adds every JB2A animation that Automated Animations doesn't list yet to its animation menus. Reads your installed JB2A version each time the world loads."
+      }
+    },
+    "Notify": {
+      "OldAA": "Nik's JB2A for Automated Animations needs Automated Animations 8.0.7 or newer. No animations were added.",
+      "NoDatabase": "Nik's JB2A for Automated Animations couldn't read the JB2A database of your JB2A module. No animations were added."
+    }
+  }
+}

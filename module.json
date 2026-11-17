@@ -1,0 +1,61 @@
+{
+  "id": "niks-jb2a-for-aa",
+  "title": "Nik's JB2A for Automated Animations",
+  "description": "Adds every JB2A animation that Automated Animations doesn't list yet to its animation menus, so you no longer have to type file paths into the custom field. Reads your installed JB2A version each time the world loads, so new JB2A releases show up without any extra step.",
+  "url": "https://github.com/nschoenwald/niks-jb2a-for-aa",
+  "manifest": "https://github.com/nschoenwald/niks-jb2a-for-aa/releases/latest/download/module.json",
+  "download": "https://github.com/nschoenwald/niks-jb2a-for-aa/releases/latest/download/module.zip",
+  "bugs": "https://github.com/nschoenwald/niks-jb2a-for-aa/issues",
+  "changelog": "https://github.com/nschoenwald/niks-jb2a-for-aa/blob/main/CHANGELOG.md",
+  "version": "14.0.0",
+  "compatibility": {
+    "minimum": "14",
+    "verified": "14",
+    "maximum": "14"
+  },
+  "authors": [
+    {
+      "name": "nikolai.sw"
+    }
+  ],
+  "esmodules": [
+    "scripts/main.js"
+  ],
+  "languages": [
+    {
+      "lang": "en",
+      "name": "English",
+      "path": "lang/en.json"
+    },
+    {
+      "lang": "de",
+      "name": "Deutsch",
+      "path": "lang/de.json"
+    }
+  ],
+  "relationships": {
+    "requires": [
+      {
+        "id": "autoanimations",
+        "type": "module",
+        "compatibility": {
+          "minimum": "8.0.7"
+        }
+      },
+      {
+        "id": "sequencer",
+        "type": "module"
+      }
+    ],
+    "recommends": [
+      {
+        "id": "jb2a_patreon",
+        "type": "module",
+        "reason": "Automated Animations' own lists cover JB2A up to version 0.5.4. This module adds everything released since."
+      }
+    ]
+  },
+  "socket": false,
+  "protected": false,
+  "library": false
+}
