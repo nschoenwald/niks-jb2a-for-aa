@@ -129,12 +129,58 @@ export function splitKeys(keys, section) {
 }
 
 const sameFiles = (a, b) => Array.isArray(a) && a.length === b.length && a.every((f, i) => relPath(f) === relPath(b[i]));
+const isRangeSection = (section) => section === "range" || section === "return";
+
+/**
+ * JB2A group of a leaf: its keys without color and distance. Leaves of one group are colors of the same animation,
+ * so AA keeps them in one place, though often under its own names (JB2A fireball.beam → AA range.spell.fireballbeam.01).
+ */
+function groupOf(keys) {
+   const rest = keys.slice(1);
+   const isReturn = rest.includes("return");
+   const parts = rest.filter((k) => k !== "return" && !DISTANCE.test(k));
+   let colorIndex = -1;
+   for (let i = parts.length - 1; i >= 0; i--) { if (isColor(parts[i])) { colorIndex = i; break; } }
+   parts.splice(colorIndex >= 0 ? colorIndex : parts.length - 1, 1);
+   return `${isReturn ? "return:" : ""}${keys[0]}|${parts.join("|")}`;
+}
+
+/** Library path → every place AA keeps that file: { section, type, animation, variant }. */
+function indexLocations(aaDb) {
+   const index = new Map();
+   const add = (files, loc) => {
+      for (const f of toArray(files)) {
+         if (typeof f !== "string") { continue; }
+         const rel = relPath(f);
+         if (!index.has(rel)) { index.set(rel, []); }
+         index.get(rel).push(loc);
+      }
+   };
+   const entries = (node) => Object.entries(node ?? {}).filter(([k, v]) => !k.startsWith("_") && isObject(v));
+   for (const section of SECTIONS) {
+      for (const [type, typeNode] of entries(aaDb[section])) {
+         for (const [animation, animNode] of entries(typeNode)) {
+            for (const [variant, variantNode] of entries(animNode)) {
+               for (const [color, leaf] of Object.entries(variantNode)) {
+                  if (color.startsWith("_")) { continue; }
+                  const loc = { section, type, animation, variant };
+                  if (isObject(leaf)) { for (const [k, v] of Object.entries(leaf)) { if (!k.startsWith("_")) { add(v, loc); } } }
+                  else { add(leaf, loc); }
+               }
+            }
+         }
+      }
+   }
+   return index;
+}
 
 /**
  * Add every JB2A file that the AA database doesn't contain yet. Mutates `aaDb`.
+ * A new color of a JB2A group that AA already has goes next to AA's other colors of that group. Everything else
+ * is placed by its library folder (see classify() and splitKeys()).
  * @param {object} jb2aDb   JB2A's database (as built by its jb2a_sequencer.js)
  * @param {object} aaDb     AA's database (the object passed to the `aa.ready` hook)
- * @returns {{ added: object, skipped: number, labels: object, templates: Set<string> }}
+ * @returns {{ added: object, skipped: number, besideAA: number, labels: object, templates: Set<string> }}
  */
 export function extendDatabase(jb2aDb, aaDb) {
    const known = collectFiles(aaDb);
@@ -142,18 +188,63 @@ export function extendDatabase(jb2aDb, aaDb) {
    const labels = { menuTypes: {}, animations: {}, variants: {}, colors: {} };
    const templates = new Set();
    let skipped = 0;
+   let besideAA = 0;
 
    const child = (node, key) => (node[key] ??= {});
+   const leaves = [...jb2aLeaves(jb2aDb)].filter((leaf) => !SKIPPED_FOLDERS.includes(relPath(leaf.files[0]).split("/")[0]));
 
-   for (const leaf of jb2aLeaves(jb2aDb)) {
+   // Where AA keeps the groups it knows.
+   const locations = indexLocations(aaDb);
+   const groupLocations = new Map();
+   for (const leaf of leaves) {
+      const locs = locations.get(relPath(leaf.files[0]));
+      if (!locs) { continue; }
+      const group = groupOf(leaf.keys);
+      if (!groupLocations.has(group)) { groupLocations.set(group, new Map()); }
+      for (const loc of locs) { groupLocations.get(group).set(Object.values(loc).join("."), loc); }
+   }
+
+   /** Put the leaf into an existing AA place if the slot is free. Returns false if it isn't. */
+   const placeAt = (loc, color, distance, files) => {
+      if (isRangeSection(loc.section) !== !!distance) { return false; }
+      const variantNode = aaDb[loc.section]?.[loc.type]?.[loc.animation]?.[loc.variant];
+      if (!isObject(variantNode)) { return false; }
+      if (distance) {
+         const slot = variantNode[color]?.[distance];
+         if (slot !== undefined && !sameFiles(slot, files)) { return false; }
+         child(variantNode, color)[distance] = [...files];
+      } else {
+         if (variantNode[color] !== undefined && !sameFiles(variantNode[color], files)) { return false; }
+         variantNode[color] = [...files];
+      }
+      return true;
+   };
+
+   for (const leaf of leaves) {
       const rel = relPath(leaf.files[0]);
-      if (SKIPPED_FOLDERS.includes(rel.split("/")[0])) { continue; }
       if (leaf.files.every((f) => known.has(relPath(f)))) { skipped++; continue; }
 
-      const { section, type } = classify(leaf);
-      const k = splitKeys(leaf.keys, section);
+      const own = classify(leaf);
+      const k = splitKeys(leaf.keys, own.section);
+      const rawDistance = DISTANCE.test(leaf.keys.at(-1)) ? leaf.keys.at(-1) : null;
+
+      const besideLocs = [...(groupLocations.get(groupOf(leaf.keys))?.values() ?? [])];
+      const placed = besideLocs.filter((loc) => placeAt(loc, k.color, rawDistance, leaf.files));
+      if (placed.length) {
+         besideAA++;
+         added[placed[0].section]++;
+         labels.colors[k.color] ??= humanize(k.colorRaw);
+         leaf.files.forEach((f) => known.add(relPath(f)));
+         continue;
+      }
+
+      const { section, type } = own;
       const isRange = !!k.distance;
-      const animNode = child(child(child(aaDb, section), type), k.animation);
+      const typeNode = child(child(aaDb, section), type);
+      // JB2A and AA sometimes differ only in plural ("energy_strands" / AA "energystrand"): use AA's animation.
+      const animation = typeNode[k.animation] ? k.animation
+         : [k.animation.replace(/s$/, ""), `${k.animation}s`].find((key) => key !== k.animation && isObject(typeNode[key])) ?? k.animation;
+      const animNode = child(typeNode, animation);
 
       // Find a variant slot where this color (and distance) is free or already holds these files.
       let variant = k.variant;
@@ -178,9 +269,9 @@ export function extendDatabase(jb2aDb, aaDb) {
 
       labels.menuTypes[type] ??= type === "sideImpact" ? "Side Impact"
          : section === "static" && !Object.values(STATIC_TYPES).includes(type) ? humanize(rel.split("/")[1]) : humanize(type);
-      labels.animations[k.animation] ??= leaf.name ?? humanize(k.animationRaw);
+      labels.animations[animation] ??= leaf.name ?? humanize(k.animationRaw);
       labels.variants[variant] ??= humanize(variant);
       labels.colors[k.color] ??= humanize(k.colorRaw);
    }
-   return { added, skipped, labels, templates };
+   return { added, skipped, besideAA, labels, templates };
 }

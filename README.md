@@ -18,6 +18,9 @@ that is about 6,600 animation files.
   - **Templates**: circle, cone, line and square effects.
   - **On Token**: everything else, sorted by JB2A folder (Marker, Magic Signs, Conditions, Zoning, Portals, Token
     Stage…). Folders Automated Animations has no category for get their own.
+- When Automated Animations already lists other colors of an animation, new colors go right next to them, under
+  AA's own name (for example a new yellow Fireball Beam goes under Fireball Beam). Names that differ only in plural
+  (Energy Strands / Energy Strand) are merged too.
 - Animations Automated Animations already knows are left as they are. Your existing animation settings are not
   changed.
 - New entries get readable names from JB2A's own names, such as "Lava Spout" or "Dark Red". They are English.
