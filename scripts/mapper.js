@@ -284,16 +284,20 @@ export function extendDatabase(jb2aDb, aaDb) {
          variant = `${k.variant}_${n}`;
       }
 
+      const isNewVariant = !isObject(animNode[variant]);
       const variantNode = child(animNode, variant);
       if (isRange) {
          if (section === "range") { rangePlaces.set(leaf.keys.join("|"), { type, animation, variant, color: k.color, distance: k.distance }); }
          const colorNode = child(variantNode, k.color);
          colorNode[k.distance] = [...leaf.files];
-         if (leaf.template && !colorNode._template) { colorNode._template = leaf.template; templates.add(leaf.template); }
+         // AA's range section defaults to "ranged". JB2A entries without a template use Sequencer's default one.
+         if (!colorNode._template) { colorNode._template = leaf.template ?? "default"; }
+         if (leaf.template) { templates.add(leaf.template); }
       } else {
          variantNode[k.color] = [...leaf.files];
       }
-      if (leaf.markers && !variantNode._markers) { variantNode._markers = leaf.markers; }
+      // Only on variants created here: AA's own colors in an existing variant keep their timing.
+      if (leaf.markers && isNewVariant) { variantNode._markers ??= leaf.markers; }
       leaf.files.forEach((f) => known.add(relPath(f)));
       added[section]++;
 

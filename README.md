@@ -45,6 +45,8 @@ that is about 6,600 animation files.
 - Menu names are made from JB2A's internal names, so some variants have technical names such as "Circle Static 003".
 - Some animation groups have many variants (for example JB2A's circle templates), so their menus get long.
 - A few animations may land in an unexpected category, because JB2A's library isn't sorted fully consistently.
+- Items and automatic recognition entries set to an added animation depend on this module. If you turn it off, or a
+  future JB2A release renames that animation, Automated Animations falls back to its default animation for them.
 
 ## Checking what was added
 

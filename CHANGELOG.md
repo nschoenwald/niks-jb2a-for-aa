@@ -2,6 +2,10 @@
 
 All notable changes to Nik's JB2A for Automated Animations are documented in this file.
 
+## [14.0.3] - 2026-11-17
+### Fixed
+- **Fire Jet**: The Fire Jet range animation now lines up with the attacking token the way JB2A intends, instead of being offset like an arrow.
+
 ## [14.0.2] - 2026-11-17
 ### Fixed
 - **Returning weapons**: The return animations of weapons Automated Animations didn't know yet, such as the Fork and the thrown Shield, now play when you turn on Return Animation. Before, the option could be turned on, but the return animation couldn't be found.
